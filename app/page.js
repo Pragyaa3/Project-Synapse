@@ -2,8 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Plus, Brain, Mic, Loader2, Sparkles } from 'lucide-react';
-import { classifyContent, semanticSearch, analyzeVoiceTranscript } from '@/lib/claude';
+import { Search, Plus, Brain, Mic, Loader2, Sparkles, Upload, Image as ImageIcon } from 'lucide-react';
 import { storage } from '@/lib/storage';
 import ContentCard from '@/components/ContentCard';
 
@@ -18,6 +17,7 @@ export default function Home() {
   const [content, setContent] = useState('');
   const [url, setUrl] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
   
   // Voice recording
   const [isRecording, setIsRecording] = useState(false);
@@ -26,12 +26,35 @@ export default function Home() {
 
   // Load items on mount
   useEffect(() => {
-    const loadedItems = storage.getAll();
-    setItems(loadedItems);
-    setFilteredItems(loadedItems);
+    // Load from both localStorage and server
+    const loadItems = async () => {
+      // First load from localStorage for instant display
+      const localItems = storage.getAll();
+      setItems(localItems);
+      setFilteredItems(localItems);
+
+      // Then fetch from server to sync
+      try {
+        const response = await fetch('/api/save');
+        const { items: serverItems } = await response.json();
+
+        // Merge and deduplicate (prefer server items)
+        const mergedItems = serverItems || localItems;
+        setItems(mergedItems);
+        setFilteredItems(mergedItems);
+
+        // Update localStorage with server data
+        localStorage.setItem('synapse_items', JSON.stringify(mergedItems));
+      } catch (error) {
+        console.error('Failed to load from server:', error);
+        // Continue with localStorage items
+      }
+    };
+
+    loadItems();
   }, []);
 
-  // Voice recording setup
+  // Voice recording
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -62,53 +85,89 @@ export default function Home() {
     }
   };
 
-  // Simulate voice transcription (in real app, use Whisper API)
-  const transcribeAudio = async (blob) => {
-    // Simulated transcription - in production, send to Whisper API
-    return "This is a placeholder transcript. User said something about this content.";
+  // Handle image upload
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImage({
+          file,
+          preview: reader.result,
+          base64: reader.result.split(',')[1],
+        });
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // Capture and classify content
   const handleCapture = async (e) => {
     e.preventDefault();
-    if (!content.trim()) return;
+    if (!content.trim() && !url && !uploadedImage) {
+      alert('Please provide some content, URL, or upload an image');
+      return;
+    }
 
     setIsProcessing(true);
     try {
-      // Classify content with AI
-      const classification = await classifyContent(content, url);
+      // Step 1: Classify content
+      const classifyRes = await fetch('/api/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: content.trim(),
+          url: url.trim() || null,
+          imageData: uploadedImage ? uploadedImage.base64 : null,
+        }),
+      });
 
-      // Process voice note if exists
+      const { classification } = await classifyRes.json();
+
+      // Step 2: Process voice note if exists
       let voiceData = null;
       if (voiceNote) {
-        const transcript = await transcribeAudio(voiceNote.blob);
-        const analysis = await analyzeVoiceTranscript(transcript);
-        voiceData = {
-          audioUrl: voiceNote.audioUrl,
-          transcript,
-          keywords: analysis.keywords,
-          tone: analysis.tone
-        };
+        const formData = new FormData();
+        formData.append('audio', voiceNote.blob, 'voice-note.webm');
+
+        const voiceRes = await fetch('/api/voice', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const voiceResult = await voiceRes.json();
+        
+        if (voiceResult.success) {
+          voiceData = {
+            audioUrl: voiceNote.audioUrl,
+            transcript: voiceResult.transcript,
+            keywords: voiceResult.analysis.keywords,
+            tone: voiceResult.analysis.tone,
+            sentiment: voiceResult.analysis.sentiment,
+            actionItems: voiceResult.analysis.actionItems,
+          };
+        }
       }
 
-      // Create new item
+      // Step 3: Create new item
       const newItem = {
         id: Date.now().toString(),
         type: classification.contentType,
-        rawContent: content,
-        url: url || null,
+        rawContent: content.trim(),
+        url: url.trim() || null,
         metadata: classification.metadata,
         voice: voiceData,
-        keywords: classification.keywords,
-        tags: classification.tags,
+        keywords: classification.keywords || [],
+        tags: classification.tags || [],
+        image: uploadedImage ? uploadedImage.preview : null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      // Save to storage
+      // Step 4: Save to storage
       storage.save(newItem);
 
-      // Update state
+      // Step 5: Update state
       const updatedItems = [newItem, ...items];
       setItems(updatedItems);
       setFilteredItems(updatedItems);
@@ -117,9 +176,10 @@ export default function Home() {
       setContent('');
       setUrl('');
       setVoiceNote(null);
+      setUploadedImage(null);
       setIsCapturing(false);
       
-      alert('✅ Content captured and classified!');
+      alert('✅ Content captured successfully!');
     } catch (error) {
       console.error('Capture failed:', error);
       alert('❌ Failed to capture content. Please try again.');
@@ -137,10 +197,27 @@ export default function Home() {
 
     setIsSearching(true);
     try {
-      const results = await semanticSearch(searchQuery, items);
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: searchQuery,
+          items,
+        }),
+      });
+
+      const { results } = await response.json();
       setFilteredItems(results);
     } catch (error) {
       console.error('Search failed:', error);
+      // Fallback to simple filter
+      const lowerQuery = searchQuery.toLowerCase();
+      const results = items.filter(item =>
+        item.metadata.title?.toLowerCase().includes(lowerQuery) ||
+        item.keywords.some(k => k.toLowerCase().includes(lowerQuery)) ||
+        item.tags.some(t => t.toLowerCase().includes(lowerQuery))
+      );
+      setFilteredItems(results);
     } finally {
       setIsSearching(false);
     }
@@ -163,6 +240,7 @@ export default function Home() {
     } else {
       setFilteredItems(storage.filterByType(type));
     }
+    setSearchQuery('');
   };
 
   const stats = storage.getStats();
@@ -170,28 +248,28 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Brain className="w-10 h-10 text-purple-600" />
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                   Project Synapse
                 </h1>
-                <p className="text-sm text-gray-600">Your Intelligent Second Brain</p>
+                <p className="text-xs text-gray-600">Your Intelligent Second Brain</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-sm text-gray-600">
-                <span className="font-semibold text-purple-600">{stats.total}</span> items saved
+                <span className="font-semibold text-purple-600">{stats.total}</span> items
               </div>
               <button
                 onClick={() => setIsCapturing(!isCapturing)}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-md hover:shadow-lg"
               >
                 <Plus className="w-5 h-5" />
-                Capture
+                <span className="hidden sm:inline">Capture</span>
               </button>
             </div>
           </div>
@@ -201,49 +279,85 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Capture Form */}
         {isCapturing && (
-          <div className="mb-8 bg-white rounded-xl shadow-lg p-6 border-2 border-purple-200">
+          <div className="mb-8 bg-white rounded-xl shadow-xl p-6 border-2 border-purple-200 animate-in slide-in-from-top">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-600" />
               Capture New Content
             </h2>
             <form onSubmit={handleCapture} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Content (paste text, URL, or describe what you want to save)
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Content (text, thoughts, or paste anything)
                 </label>
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder="Paste an article, product link, your thoughts, or anything..."
-                  className="w-full h-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  required
+                  placeholder="Paste an article, your thoughts, a quote, or describe what you want to save..."
+                  className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
                   URL (optional)
                 </label>
                 <input
                   type="url"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://..."
+                  placeholder="https://example.com/article"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
+                <p className="text-xs text-gray-500 mt-1">We'll automatically extract content from the URL</p>
+              </div>
+
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Upload Image (optional)
+                </label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer">
+                    <ImageIcon className="w-5 h-5" />
+                    Choose Image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {uploadedImage && (
+                    <div className="flex items-center gap-2">
+                      <img 
+                        src={uploadedImage.preview} 
+                        alt="Preview" 
+                        className="w-12 h-12 object-cover rounded border"
+                      />
+                      <span className="text-sm text-green-600">✓ Image uploaded</span>
+                      <button
+                        type="button"
+                        onClick={() => setUploadedImage(null)}
+                        className="text-red-500 text-sm hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Voice Note */}
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Add Voice Note (optional)
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  Voice Note (optional)
                 </label>
                 <div className="flex items-center gap-3">
                   {!isRecording ? (
                     <button
                       type="button"
                       onClick={startRecording}
-                      className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                      className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
                     >
                       <Mic className="w-5 h-5" />
                       Start Recording
@@ -259,18 +373,25 @@ export default function Home() {
                     </button>
                   )}
                   {voiceNote && (
-                    <span className="text-sm text-green-600 flex items-center gap-1">
-                      ✓ Voice note recorded
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <audio src={voiceNote.audioUrl} controls className="h-8" />
+                      <button
+                        type="button"
+                        onClick={() => setVoiceNote(null)}
+                        className="text-red-500 text-sm hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
                   disabled={isProcessing}
-                  className="flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
                 >
                   {isProcessing ? (
                     <>
@@ -291,8 +412,9 @@ export default function Home() {
                     setContent('');
                     setUrl('');
                     setVoiceNote(null);
+                    setUploadedImage(null);
                   }}
-                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                 >
                   Cancel
                 </button>
@@ -311,21 +433,21 @@ export default function Home() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Search naturally: 'black shoes under $300', 'articles about AI', 'my todo list'..."
+                placeholder="Try: 'black shoes under $300', 'articles about AI', 'my todo list from yesterday'..."
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
             <button
               onClick={handleSearch}
               disabled={isSearching}
-              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2 transition-colors shadow-md hover:shadow-lg"
             >
               {isSearching ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
                   <Search className="w-5 h-5" />
-                  Search
+                  <span className="hidden sm:inline">Search</span>
                 </>
               )}
             </button>
@@ -333,40 +455,51 @@ export default function Home() {
 
           {/* Quick Filters */}
           <div className="flex gap-2 mt-3 flex-wrap">
-            <button onClick={() => filterByType('all')} className="px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200">
+            <button onClick={() => filterByType('all')} className="px-3 py-1 bg-gray-100 rounded-full text-sm hover:bg-gray-200 transition-colors">
               All
             </button>
-            <button onClick={() => filterByType('article')} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm hover:bg-blue-200">
+            <button onClick={() => filterByType('article')} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm hover:bg-blue-200 transition-colors">
               Articles
             </button>
-            <button onClick={() => filterByType('product')} className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm hover:bg-green-200">
+            <button onClick={() => filterByType('product')} className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm hover:bg-green-200 transition-colors">
               Products
             </button>
-            <button onClick={() => filterByType('todo')} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm hover:bg-purple-200">
+            <button onClick={() => filterByType('todo')} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm hover:bg-purple-200 transition-colors">
               Todos
             </button>
-            <button onClick={() => filterByType('video')} className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm hover:bg-red-200">
+            <button onClick={() => filterByType('video')} className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm hover:bg-red-200 transition-colors">
               Videos
+            </button>
+            <button onClick={() => filterByType('note')} className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm hover:bg-orange-200 transition-colors">
+              Notes
             </button>
           </div>
         </div>
 
         {/* Content Grid */}
         {filteredItems.length === 0 ? (
-          <div className="text-center py-16">
-            <Brain className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">
+          <div className="text-center py-20">
+            <Brain className="w-20 h-20 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">
+              {items.length === 0 ? 'Your Brain is Empty' : 'No Results Found'}
+            </h3>
+            <p className="text-gray-500">
               {items.length === 0 
-                ? "No items yet. Start by capturing something!" 
-                : "No results found. Try a different search."}
+                ? "Start capturing your thoughts, articles, and ideas!" 
+                : "Try a different search or filter."}
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredItems.map((item) => (
-              <ContentCard key={item.id} item={item} onDelete={handleDelete} />
-            ))}
-          </div>
+          <>
+            <div className="mb-4 text-sm text-gray-600">
+              Showing {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredItems.map((item) => (
+                <ContentCard key={item.id} item={item} onDelete={handleDelete} />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

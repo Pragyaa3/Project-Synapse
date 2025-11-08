@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Synapse</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .container {
+      padding: 24px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .logo {
+      font-size: 48px;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .tagline {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    .quick-actions {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(10px);
+    }
+
+    .quick-actions h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      opacity: 0.9;
+    }
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .action-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      border-radius: 8px;
+      padding: 12px 8px;
+      color: white;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .action-btn:active {
+      transform: translateY(0);
+    }
+
+    .action-icon {
+      font-size: 20px;
+    }
+
+    .stats {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(10px);
+    }
+
+    .stats h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      opacity: 0.9;
+    }
+
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .stat-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .stat-value {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .open-app-btn {
+      width: 100%;
+      background: white;
+      color: #667eea;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .open-app-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 11px;
+      opacity: 0.7;
+    }
+
+    .shortcuts {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(10px);
+    }
+
+    .shortcuts h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      opacity: 0.9;
+    }
+
+    .shortcut-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+
+    .shortcut-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .shortcut-key {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">🧠</div>
+      <h1>Synapse</h1>
+      <p class="tagline">Your Intelligent Second Brain</p>
+    </div>
+
+    <div class="quick-actions">
+      <h2>Quick Actions</h2>
+      <div class="action-grid">
+        <button class="action-btn" id="save-page">
+          <span class="action-icon">📄</span>
+          <span>Save Page</span>
+        </button>
+        <button class="action-btn" id="save-selection">
+          <span class="action-icon">✂️</span>
+          <span>Save Selection</span>
+        </button>
+        <button class="action-btn" id="save-screenshot">
+          <span class="action-icon">📸</span>
+          <span>Screenshot</span>
+        </button>
+        <button class="action-btn" id="save-todo">
+          <span class="action-icon">✅</span>
+          <span>As Todo</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="shortcuts">
+      <h2>Keyboard Shortcuts</h2>
+      <div class="shortcut-item">
+        <span>Quick save</span>
+        <span class="shortcut-key">Ctrl+Shift+X</span>
+      </div>
+      <div class="shortcut-item">
+        <span>Save page</span>
+        <span class="shortcut-key">Ctrl+Shift+S</span>
+      </div>
+      <div class="shortcut-item">
+        <span>Right-click</span>
+        <span class="shortcut-key">Context menu</span>
+      </div>
+    </div>
+
+    <button class="open-app-btn" id="open-app">
+      Open Synapse Dashboard
+    </button>
+
+    <div class="footer">
+      v1.0.0 • Right-click anything to save
+    </div>
+  </div>
+
+  <script src="scripts/popup.js"></script>
+</body>
+</html>
