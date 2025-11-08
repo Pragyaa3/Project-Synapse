@@ -13,28 +13,32 @@ An intelligent knowledge management system that captures, understands, and retri
 ## 📸 Screenshots
 
 ### Main Interface
-![Main Interface](docs/screenshots/main-interface.png)
+![Main Interface](docs/screenshots/main-interface.jpg)
 *Capture anything - URLs, text, images, voice notes - all in one beautiful interface*
 
 ### Intelligent Content Cards
-![Content Cards](docs/screenshots/content-cards.png)
+![Content Cards](docs/screenshots/content-cards.jpg)
 *Each content type gets its perfect visual format - articles, products, todos, voice notes, and more*
 
 ### Natural Language Search
-![Search](docs/screenshots/search.png)
+![Search](docs/screenshots/search.jpg)
 *Search naturally: "articles about AI from last week" or "black shoes under $300"*
 
 ### Browser Extension
-![Extension](docs/screenshots/extension.png)
+![Extension](docs/screenshots/extension.jpg)
 *One-click capture from anywhere on the web with 8 context menu options*
 
 ### Voice Notes with AI Analysis
-![Voice Notes](docs/screenshots/voice-notes.png)
+![Voice Notes](docs/screenshots/voice-notes.jpg)
 *Record voice memos with automatic transcription, sentiment analysis, and entity extraction*
 
 ### Image Analysis & OCR
-![Image Analysis](docs/screenshots/image-ocr.png)
+![Image Analysis](docs/screenshots/image-ocr.jpg)
 *AI-powered image understanding - extracts text, identifies objects, analyzes colors*
+
+### Database Schema & Storage
+![Database](docs/screenshots/db.jpg)
+*Supabase PostgreSQL database with Prisma ORM - scalable, reliable, production-ready*
 
 ---
 
