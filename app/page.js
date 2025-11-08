@@ -129,9 +129,14 @@ export default function Home() {
             audioUrl: voiceNote.audioUrl,
             transcript: voiceResult.transcript,
             keywords: voiceResult.analysis.keywords,
+            tags: voiceResult.analysis.tags,
             tone: voiceResult.analysis.tone,
             sentiment: voiceResult.analysis.sentiment,
+            summary: voiceResult.analysis.summary,
+            mainTopics: voiceResult.analysis.mainTopics,
             actionItems: voiceResult.analysis.actionItems,
+            entities: voiceResult.analysis.entities,
+            contentType: voiceResult.analysis.contentType,
           };
         }
       }
@@ -151,9 +156,18 @@ export default function Home() {
 
       const { item: savedItem } = await saveRes.json();
 
-      // Step 3: Add voice data if exists
+      // Step 3: Add voice data and merge keywords/tags if exists
       if (voiceData) {
         savedItem.voice = voiceData;
+
+        // Merge voice keywords and tags with item keywords/tags
+        savedItem.keywords = [...new Set([...savedItem.keywords, ...voiceData.keywords])];
+        savedItem.tags = [...new Set([...savedItem.tags, ...voiceData.tags])];
+
+        // Update metadata with voice summary if better
+        if (voiceData.summary && (!savedItem.metadata.summary || savedItem.metadata.summary.length < 20)) {
+          savedItem.metadata.summary = voiceData.summary;
+        }
       }
 
       // Step 4: Update localStorage

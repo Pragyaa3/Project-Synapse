@@ -116,16 +116,78 @@ export default function ContentCard({ item, onDelete }) {
         <Mic className="w-5 h-5" />
         <span className="font-medium">Voice Note</span>
       </div>
+
+      {/* Summary */}
+      {item.voice?.summary && (
+        <p className="text-sm font-semibold text-gray-800">
+          {item.voice.summary}
+        </p>
+      )}
+
+      {/* Transcript */}
       {item.voice?.transcript && (
-        <p className="text-sm text-gray-700 italic line-clamp-3">
+        <p className="text-sm text-gray-700 italic line-clamp-3 bg-white bg-opacity-50 p-2 rounded">
           "{item.voice.transcript}"
         </p>
       )}
-      {item.voice?.tone && (
-        <span className="inline-block px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
-          {item.voice.tone}
-        </span>
+
+      {/* Main Topics */}
+      {item.voice?.mainTopics && item.voice.mainTopics.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {item.voice.mainTopics.slice(0, 3).map((topic, i) => (
+            <span
+              key={i}
+              className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full"
+            >
+              {topic}
+            </span>
+          ))}
+        </div>
       )}
+
+      {/* Action Items */}
+      {item.voice?.actionItems && item.voice.actionItems.length > 0 && (
+        <div className="bg-yellow-50 p-2 rounded">
+          <p className="text-xs font-semibold text-yellow-800 mb-1">Action Items:</p>
+          <ul className="space-y-1">
+            {item.voice.actionItems.slice(0, 3).map((action, i) => (
+              <li key={i} className="text-xs text-yellow-900 flex items-start gap-1">
+                <CheckSquare className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                {action}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Entities */}
+      {item.voice?.entities && item.voice.entities.length > 0 && (
+        <div className="flex flex-wrap gap-1 items-center">
+          <span className="text-xs text-gray-500">Mentioned:</span>
+          {item.voice.entities.slice(0, 4).map((entity, i) => (
+            <span
+              key={i}
+              className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full"
+            >
+              {entity}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Tone & Sentiment */}
+      <div className="flex gap-2">
+        {item.voice?.tone && (
+          <span className="inline-block px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+            Tone: {item.voice.tone}
+          </span>
+        )}
+        {item.voice?.sentiment && (
+          <span className="inline-block px-2 py-1 bg-pink-100 text-pink-700 text-xs rounded-full">
+            {item.voice.sentiment}
+          </span>
+        )}
+      </div>
     </div>
   );
 

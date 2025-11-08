@@ -60,10 +60,14 @@ export async function POST(request) {
       transcript,
       analysis: {
         keywords: analysis.keywords || [],
+        tags: analysis.tags || [],
         tone: analysis.tone || 'casual',
-        sentiment: analysis.tone || 'neutral',
+        sentiment: analysis.sentiment || 'neutral',
         summary: analysis.summary || transcript.substring(0, 100),
-        actionItems: analysis.categories || [],
+        mainTopics: analysis.mainTopics || [],
+        actionItems: analysis.actionItems || [],
+        entities: analysis.entities || [],
+        contentType: analysis.contentType || 'note',
       },
     });
   } catch (error) {
