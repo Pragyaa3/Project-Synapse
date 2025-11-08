@@ -16,16 +16,12 @@ export async function POST(request) {
     // Build content string for classification
     let fullContent = content || '';
 
-    if (imageData) {
-      fullContent += '\n[Image attached - analyze visual content]';
-    }
-
     if (url) {
       fullContent += `\nURL: ${url}`;
     }
 
-    // Call Claude to classify the content
-    const result = await classifyContent(fullContent, url);
+    // Call Claude to classify the content (with image if provided)
+    const result = await classifyContent(fullContent, url, imageData);
 
     // Return classification results
     return NextResponse.json({
@@ -40,6 +36,10 @@ export async function POST(request) {
           source: result.metadata?.source,
           imageUrl: result.metadata?.imageUrl,
           description: result.metadata?.description,
+          imageAnalysis: result.metadata?.imageAnalysis,
+          extractedText: result.metadata?.extractedText,
+          colors: result.metadata?.colors,
+          visualType: result.metadata?.visualType,
         },
         tags: result.tags || [],
         keywords: result.keywords || [],

@@ -14,6 +14,9 @@ const typeIcons = {
   todo: CheckSquare,
   quote: Quote,
   image: ImageIcon,
+  screenshot: ImageIcon,
+  diagram: ImageIcon,
+  meme: ImageIcon,
   book: Book,
   link: Link,
   note: StickyNote,
@@ -28,6 +31,9 @@ const typeColors = {
   todo: 'bg-purple-50 border-purple-200 text-purple-700',
   quote: 'bg-yellow-50 border-yellow-200 text-yellow-700',
   image: 'bg-pink-50 border-pink-200 text-pink-700',
+  screenshot: 'bg-cyan-50 border-cyan-200 text-cyan-700',
+  diagram: 'bg-violet-50 border-violet-200 text-violet-700',
+  meme: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700',
   book: 'bg-indigo-50 border-indigo-200 text-indigo-700',
   link: 'bg-gray-50 border-gray-200 text-gray-700',
   note: 'bg-orange-50 border-orange-200 text-orange-700',
@@ -123,6 +129,48 @@ export default function ContentCard({ item, onDelete }) {
     </div>
   );
 
+  const renderImage = () => (
+    <div className="space-y-2">
+      {item.image && (
+        <img
+          src={item.image}
+          alt={item.metadata.title || 'Uploaded image'}
+          className="w-full h-48 object-cover rounded-lg"
+        />
+      )}
+      <h3 className="font-semibold line-clamp-2">{item.metadata.title || 'Untitled'}</h3>
+      {item.metadata.imageAnalysis && (
+        <p className="text-sm text-gray-700 line-clamp-3">
+          📸 {item.metadata.imageAnalysis}
+        </p>
+      )}
+      {item.metadata.extractedText && (
+        <div className="bg-white bg-opacity-50 p-2 rounded text-xs">
+          <strong>Extracted Text:</strong>
+          <p className="line-clamp-2 mt-1">{item.metadata.extractedText}</p>
+        </div>
+      )}
+      {item.metadata.colors && item.metadata.colors.length > 0 && (
+        <div className="flex gap-1 items-center">
+          <span className="text-xs text-gray-500">Colors:</span>
+          {item.metadata.colors.slice(0, 5).map((color, i) => (
+            <span
+              key={i}
+              className="px-2 py-0.5 bg-white bg-opacity-70 rounded-full text-xs"
+            >
+              {color}
+            </span>
+          ))}
+        </div>
+      )}
+      {item.metadata.visualType && (
+        <span className="inline-block px-2 py-1 bg-white bg-opacity-50 rounded-full text-xs">
+          Type: {item.metadata.visualType}
+        </span>
+      )}
+    </div>
+  );
+
   const renderDefault = () => (
     <div className="space-y-2">
       <h3 className="font-semibold line-clamp-2">{item.metadata.title || 'Untitled'}</h3>
@@ -171,7 +219,8 @@ export default function ContentCard({ item, onDelete }) {
         {item.type === 'product' && renderProduct()}
         {item.type === 'video' && renderVideo()}
         {item.voice && renderVoiceNote()}
-        {!['todo', 'product', 'video'].includes(item.type) && !item.voice && renderDefault()}
+        {['image', 'screenshot', 'diagram', 'meme'].includes(item.type) && renderImage()}
+        {!['todo', 'product', 'video', 'image', 'screenshot', 'diagram', 'meme'].includes(item.type) && !item.voice && renderDefault()}
       </div>
 
       {/* Tags */}

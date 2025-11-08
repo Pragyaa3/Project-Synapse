@@ -144,10 +144,18 @@ async function handleSaveImage(info, tab) {
 }
 
 async function handleSaveVideo(info, tab) {
+  // Extract video metadata from the page
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: extractVideoMetadata
+  });
+
   const data = {
-    content: info.srcUrl || tab.url,
+    content: `${tab.title}\n\n${result.description || ''}`,
     url: tab.url,
     pageTitle: tab.title,
+    videoUrl: info.srcUrl || tab.url,
+    metadata: result,
     type: 'video'
   };
 
@@ -196,6 +204,54 @@ async function handleSaveQuote(info, tab) {
   await sendToSynapse(data, tab.id);
 }
 
+// Function to extract video metadata (runs in page context)
+function extractVideoMetadata() {
+  // Try to extract YouTube-specific metadata
+  const isYouTube = window.location.hostname.includes('youtube.com');
+
+  if (isYouTube) {
+    // YouTube metadata extraction
+    const title = document.querySelector('meta[name="title"]')?.content ||
+                  document.querySelector('h1.ytd-video-primary-info-renderer')?.textContent ||
+                  document.title.replace(' - YouTube', '');
+
+    const description = document.querySelector('meta[name="description"]')?.content || '';
+
+    const author = document.querySelector('ytd-channel-name a')?.textContent ||
+                   document.querySelector('meta[name="author"]')?.content || '';
+
+    const thumbnail = document.querySelector('meta[property="og:image"]')?.content || '';
+
+    const duration = document.querySelector('meta[itemprop="duration"]')?.content || '';
+
+    return {
+      title,
+      description,
+      author,
+      thumbnail,
+      duration,
+      platform: 'YouTube'
+    };
+  }
+
+  // Generic video metadata extraction
+  const title = document.querySelector('meta[property="og:title"]')?.content ||
+                document.querySelector('meta[name="title"]')?.content ||
+                document.title;
+
+  const description = document.querySelector('meta[property="og:description"]')?.content ||
+                     document.querySelector('meta[name="description"]')?.content || '';
+
+  const thumbnail = document.querySelector('meta[property="og:image"]')?.content || '';
+
+  return {
+    title,
+    description,
+    thumbnail,
+    platform: 'Video'
+  };
+}
+
 // Function to extract page content (runs in page context)
 function extractPageContent() {
   // Get main content
@@ -230,17 +286,24 @@ async function sendToSynapse(data, tabId) {
     console.log('Showing processing notification...');
     await showNotification(tabId, 'processing', 'Saving to Synapse...');
 
+    // Build the payload
+    const payload = {
+      content: data.content,
+      url: data.url,
+      imageData: data.imageUrl ? null : null,
+      pageTitle: data.pageTitle,
+      metadata: data.metadata || null,
+    };
+
     console.log('Making API call to:', `${API_BASE_URL}/api/save`);
+    console.log('Payload:', payload);
+
     const response = await fetch(`${API_BASE_URL}/api/save`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        content: data.content,
-        url: data.url,
-        imageData: data.imageUrl ? null : null, // TODO: Convert image to base64 if needed
-      }),
+      body: JSON.stringify(payload),
     });
 
     console.log('API response status:', response.status);

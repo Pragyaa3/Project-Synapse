@@ -111,20 +111,7 @@ export default function Home() {
 
     setIsProcessing(true);
     try {
-      // Step 1: Classify content
-      const classifyRes = await fetch('/api/classify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: content.trim(),
-          url: url.trim() || null,
-          imageData: uploadedImage ? uploadedImage.base64 : null,
-        }),
-      });
-
-      const { classification } = await classifyRes.json();
-
-      // Step 2: Process voice note if exists
+      // Step 1: Process voice note if exists
       let voiceData = null;
       if (voiceNote) {
         const formData = new FormData();
@@ -136,7 +123,7 @@ export default function Home() {
         });
 
         const voiceResult = await voiceRes.json();
-        
+
         if (voiceResult.success) {
           voiceData = {
             audioUrl: voiceNote.audioUrl,
@@ -149,26 +136,31 @@ export default function Home() {
         }
       }
 
-      // Step 3: Create new item
-      const newItem = {
-        id: Date.now().toString(),
-        type: classification.contentType,
-        rawContent: content.trim(),
-        url: url.trim() || null,
-        metadata: classification.metadata,
-        voice: voiceData,
-        keywords: classification.keywords || [],
-        tags: classification.tags || [],
-        image: uploadedImage ? uploadedImage.preview : null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      // Step 2: Save to server (includes classification)
+      const saveRes = await fetch('/api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: content.trim(),
+          url: url.trim() || null,
+          imageData: uploadedImage ? uploadedImage.base64 : null,
+          pageTitle: null,
+          metadata: null,
+        }),
+      });
 
-      // Step 4: Save to storage
-      storage.save(newItem);
+      const { item: savedItem } = await saveRes.json();
+
+      // Step 3: Add voice data if exists
+      if (voiceData) {
+        savedItem.voice = voiceData;
+      }
+
+      // Step 4: Update localStorage
+      storage.save(savedItem);
 
       // Step 5: Update state
-      const updatedItems = [newItem, ...items];
+      const updatedItems = [savedItem, ...items];
       setItems(updatedItems);
       setFilteredItems(updatedItems);
 
@@ -178,7 +170,7 @@ export default function Home() {
       setVoiceNote(null);
       setUploadedImage(null);
       setIsCapturing(false);
-      
+
       alert('✅ Content captured successfully!');
     } catch (error) {
       console.error('Capture failed:', error);
@@ -293,7 +285,7 @@ export default function Home() {
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Paste an article, your thoughts, a quote, or describe what you want to save..."
-                  className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-gray-900 placeholder:text-gray-400"
                 />
               </div>
 
@@ -306,7 +298,7 @@ export default function Home() {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://example.com/article"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
                 />
                 <p className="text-xs text-gray-500 mt-1">We'll automatically extract content from the URL</p>
               </div>
@@ -434,7 +426,7 @@ export default function Home() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="Try: 'black shoes under $300', 'articles about AI', 'my todo list from yesterday'..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
               />
             </div>
             <button

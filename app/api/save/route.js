@@ -42,7 +42,7 @@ function saveItems(items) {
 
 export async function POST(request) {
   try {
-    const { content, url, imageData } = await request.json();
+    const { content, url, imageData, pageTitle, metadata: providedMetadata } = await request.json();
 
     if (!content && !url && !imageData) {
       return NextResponse.json(
@@ -54,16 +54,42 @@ export async function POST(request) {
     // Build content string for classification
     let fullContent = content || '';
 
-    if (imageData) {
-      fullContent += '\n[Image attached - analyze visual content]';
-    }
-
     if (url) {
       fullContent += `\nURL: ${url}`;
     }
 
-    // Call Claude to classify the content
-    const classification = await classifyContent(fullContent, url);
+    // Call Claude to classify the content (with image if provided)
+    const classification = await classifyContent(fullContent, url, imageData);
+
+    // Use provided metadata if available (from extension), otherwise use AI classification
+    const finalMetadata = providedMetadata ? {
+      title: providedMetadata.title || classification.title || pageTitle,
+      summary: providedMetadata.description || classification.summary,
+      author: providedMetadata.author || classification.metadata?.author,
+      price: providedMetadata.price || classification.metadata?.price,
+      date: classification.metadata?.date,
+      source: providedMetadata.platform || classification.metadata?.source,
+      imageUrl: providedMetadata.thumbnail || classification.metadata?.imageUrl,
+      description: providedMetadata.description || classification.metadata?.description,
+      duration: providedMetadata.duration,
+      imageAnalysis: classification.metadata?.imageAnalysis,
+      extractedText: classification.metadata?.extractedText,
+      colors: classification.metadata?.colors,
+      visualType: classification.metadata?.visualType,
+    } : {
+      title: classification.title || pageTitle,
+      summary: classification.summary,
+      author: classification.metadata?.author,
+      price: classification.metadata?.price,
+      date: classification.metadata?.date,
+      source: classification.metadata?.source,
+      imageUrl: classification.metadata?.imageUrl,
+      description: classification.metadata?.description,
+      imageAnalysis: classification.metadata?.imageAnalysis,
+      extractedText: classification.metadata?.extractedText,
+      colors: classification.metadata?.colors,
+      visualType: classification.metadata?.visualType,
+    };
 
     // Create new item
     const newItem = {
@@ -71,16 +97,7 @@ export async function POST(request) {
       type: classification.contentType,
       rawContent: content || url || '',
       url: url || null,
-      metadata: {
-        title: classification.title,
-        summary: classification.summary,
-        author: classification.metadata?.author,
-        price: classification.metadata?.price,
-        date: classification.metadata?.date,
-        source: classification.metadata?.source,
-        imageUrl: classification.metadata?.imageUrl,
-        description: classification.metadata?.description,
-      },
+      metadata: finalMetadata,
       keywords: classification.keywords || [],
       tags: classification.tags || [],
       image: imageData ? `data:image/png;base64,${imageData}` : null,
