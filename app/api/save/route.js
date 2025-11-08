@@ -1,48 +1,12 @@
 // app/api/save/route.js
 import { NextResponse } from 'next/server';
 import { classifyContent } from '@/lib/claude';
-import fs from 'fs';
-import path from 'path';
-
-// File-based storage (since we can't use localStorage on server)
-const STORAGE_FILE = path.join(process.cwd(), 'data', 'items.json');
-
-// Ensure data directory exists
-function ensureDataDir() {
-  const dataDir = path.join(process.cwd(), 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-}
-
-// Read items from file
-function getItems() {
-  ensureDataDir();
-  try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const data = fs.readFileSync(STORAGE_FILE, 'utf-8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('Error reading items:', error);
-  }
-  return [];
-}
-
-// Save items to file
-function saveItems(items) {
-  ensureDataDir();
-  try {
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(items, null, 2));
-  } catch (error) {
-    console.error('Error saving items:', error);
-    throw error;
-  }
-}
+import prisma from '@/lib/prisma';
+import { uploadImage } from '@/lib/supabase';
 
 export async function POST(request) {
   try {
-    const { content, url, imageData, pageTitle, metadata: providedMetadata } = await request.json();
+    const { content, url, imageData, pageTitle, metadata: providedMetadata, voice } = await request.json();
 
     if (!content && !url && !imageData) {
       return NextResponse.json(
@@ -61,64 +25,98 @@ export async function POST(request) {
     // Call Claude to classify the content (with image if provided)
     const classification = await classifyContent(fullContent, url, imageData);
 
-    // Use provided metadata if available (from extension), otherwise use AI classification
-    const finalMetadata = providedMetadata ? {
-      title: providedMetadata.title || classification.title || pageTitle,
-      summary: providedMetadata.description || classification.summary,
-      author: providedMetadata.author || classification.metadata?.author,
-      price: providedMetadata.price || classification.metadata?.price,
-      date: classification.metadata?.date,
-      source: providedMetadata.platform || classification.metadata?.source,
-      imageUrl: providedMetadata.thumbnail || classification.metadata?.imageUrl,
-      description: providedMetadata.description || classification.metadata?.description,
-      duration: providedMetadata.duration,
-      imageAnalysis: classification.metadata?.imageAnalysis,
-      extractedText: classification.metadata?.extractedText,
-      colors: classification.metadata?.colors,
-      visualType: classification.metadata?.visualType,
-    } : {
-      title: classification.title || pageTitle,
-      summary: classification.summary,
-      author: classification.metadata?.author,
-      price: classification.metadata?.price,
-      date: classification.metadata?.date,
-      source: classification.metadata?.source,
-      imageUrl: classification.metadata?.imageUrl,
-      description: classification.metadata?.description,
-      imageAnalysis: classification.metadata?.imageAnalysis,
-      extractedText: classification.metadata?.extractedText,
-      colors: classification.metadata?.colors,
-      visualType: classification.metadata?.visualType,
-    };
+    // Generate unique ID for this item
+    const itemId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Create new item
-    const newItem = {
-      id: Date.now().toString(),
-      type: classification.contentType,
-      rawContent: content || url || '',
-      url: url || null,
-      metadata: finalMetadata,
-      keywords: classification.keywords || [],
-      tags: classification.tags || [],
-      image: imageData ? `data:image/png;base64,${imageData}` : null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    // Upload image to Supabase Storage if provided
+    let uploadedImageUrl = null;
+    if (imageData) {
+      try {
+        uploadedImageUrl = await uploadImage(imageData, itemId);
+      } catch (error) {
+        console.error('Image upload failed, storing base64 as fallback:', error);
+        // Fallback: store base64 in imageUrl field (not ideal for large images)
+        uploadedImageUrl = `data:image/png;base64,${imageData}`;
+      }
+    }
 
-    // Save to file storage
-    const items = getItems();
-    items.unshift(newItem); // Add to beginning
-    saveItems(items);
+    // Prepare metadata fields
+    const title = providedMetadata?.title || classification.title || pageTitle || 'Untitled';
+    const summary = providedMetadata?.description || classification.summary || null;
+    const author = providedMetadata?.author || classification.metadata?.author || null;
+    const source = providedMetadata?.platform || classification.metadata?.source || null;
+    const date = classification.metadata?.date || null;
+    const price = providedMetadata?.price || classification.metadata?.price || null;
+    const description = providedMetadata?.description || classification.metadata?.description || null;
 
-    // Return both the item and classification
+    // Image-specific fields
+    const imageUrl = uploadedImageUrl || providedMetadata?.thumbnail || classification.metadata?.imageUrl || null;
+    const imageAnalysis = classification.metadata?.imageAnalysis || null;
+    const extractedText = classification.metadata?.extractedText || null;
+    const colors = classification.metadata?.colors || [];
+    const visualType = classification.metadata?.visualType || null;
+
+    // Create item in database using Prisma
+    const newItem = await prisma.item.create({
+      data: {
+        id: itemId,
+        type: classification.contentType,
+        rawContent: content || url || '',
+        url: url || null,
+
+        // Core metadata
+        title,
+        summary,
+        author,
+        source,
+        date,
+        price,
+        description,
+
+        // AI-extracted data
+        keywords: classification.keywords || [],
+        tags: classification.tags || [],
+
+        // Image-specific fields
+        imageUrl,
+        imageAnalysis,
+        extractedText,
+        colors,
+        visualType,
+
+        // Voice data (stored as JSON)
+        voice: voice || null,
+      },
+    });
+
+    // Return the saved item
     return NextResponse.json({
       success: true,
-      item: newItem,
-      classification: {
-        contentType: classification.contentType,
-        metadata: newItem.metadata,
-        tags: newItem.tags,
+      item: {
+        id: newItem.id,
+        type: newItem.type,
+        rawContent: newItem.rawContent,
+        url: newItem.url,
+        metadata: {
+          title: newItem.title,
+          summary: newItem.summary,
+          author: newItem.author,
+          source: newItem.source,
+          date: newItem.date,
+          price: newItem.price,
+          description: newItem.description,
+          imageUrl: newItem.imageUrl,
+          imageAnalysis: newItem.imageAnalysis,
+          extractedText: newItem.extractedText,
+          colors: newItem.colors,
+          visualType: newItem.visualType,
+        },
         keywords: newItem.keywords,
+        tags: newItem.tags,
+        voice: newItem.voice,
+        image: newItem.imageUrl, // For backward compatibility with frontend
+        createdAt: newItem.createdAt.toISOString(),
+        updatedAt: newItem.updatedAt.toISOString(),
       },
     });
   } catch (error) {
@@ -131,14 +129,87 @@ export async function POST(request) {
 }
 
 // GET endpoint to retrieve all items
-export async function GET() {
+export async function GET(request) {
   try {
-    const items = getItems();
-    return NextResponse.json({ items });
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get('limit')) || 100;
+    const offset = parseInt(searchParams.get('offset')) || 0;
+    const type = searchParams.get('type');
+
+    // Build query
+    const where = type ? { type } : {};
+
+    // Fetch items from database
+    const items = await prisma.item.findMany({
+      where,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: limit,
+      skip: offset,
+    });
+
+    // Transform to frontend format
+    const formattedItems = items.map(item => ({
+      id: item.id,
+      type: item.type,
+      rawContent: item.rawContent,
+      url: item.url,
+      metadata: {
+        title: item.title,
+        summary: item.summary,
+        author: item.author,
+        source: item.source,
+        date: item.date,
+        price: item.price,
+        description: item.description,
+        imageUrl: item.imageUrl,
+        imageAnalysis: item.imageAnalysis,
+        extractedText: item.extractedText,
+        colors: item.colors,
+        visualType: item.visualType,
+      },
+      keywords: item.keywords,
+      tags: item.tags,
+      voice: item.voice,
+      image: item.imageUrl, // For backward compatibility
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+    }));
+
+    return NextResponse.json({ items: formattedItems });
   } catch (error) {
     console.error('Get items error:', error);
     return NextResponse.json(
       { error: 'Failed to retrieve items', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE endpoint to remove an item
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Item ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Delete from database
+    await prisma.item.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Delete item error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete item', details: error.message },
       { status: 500 }
     );
   }

@@ -26,28 +26,20 @@ export default function Home() {
 
   // Load items on mount
   useEffect(() => {
-    // Load from both localStorage and server
     const loadItems = async () => {
-      // First load from localStorage for instant display
-      const localItems = storage.getAll();
-      setItems(localItems);
-      setFilteredItems(localItems);
+      // First load from localStorage cache for instant display
+      const cachedItems = storage.getAll();
+      setItems(cachedItems);
+      setFilteredItems(cachedItems);
 
-      // Then fetch from server to sync
+      // Then fetch from API to get latest data
       try {
-        const response = await fetch('/api/save');
-        const { items: serverItems } = await response.json();
-
-        // Merge and deduplicate (prefer server items)
-        const mergedItems = serverItems || localItems;
-        setItems(mergedItems);
-        setFilteredItems(mergedItems);
-
-        // Update localStorage with server data
-        localStorage.setItem('synapse_items', JSON.stringify(mergedItems));
+        const freshItems = await storage.fetchAll();
+        setItems(freshItems);
+        setFilteredItems(freshItems);
       } catch (error) {
-        console.error('Failed to load from server:', error);
-        // Continue with localStorage items
+        console.error('Failed to fetch items from API:', error);
+        // Continue with cached items
       }
     };
 
@@ -230,12 +222,17 @@ export default function Home() {
   };
 
   // Delete item
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm('Delete this item?')) {
-      storage.delete(id);
-      const updated = items.filter(item => item.id !== id);
-      setItems(updated);
-      setFilteredItems(updated);
+      try {
+        await storage.delete(id);
+        const updated = items.filter(item => item.id !== id);
+        setItems(updated);
+        setFilteredItems(updated);
+      } catch (error) {
+        console.error('Delete failed:', error);
+        alert('❌ Failed to delete item');
+      }
     }
   };
 

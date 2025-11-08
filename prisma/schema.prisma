@@ -1,0 +1,52 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Item {
+  id          String   @id @default(uuid())
+  type        String   // article, video, image, screenshot, diagram, meme, product, todo, quote, note, etc.
+  rawContent  String?  @db.Text
+  url         String?
+
+  // Core metadata
+  title       String?
+  summary     String?  @db.Text
+  author      String?
+  source      String?
+  date        String?
+  price       String?
+  description String?  @db.Text
+
+  // AI-extracted data
+  keywords    String[] // Array of keywords
+  tags        String[] // Array of tags
+
+  // Image-specific fields
+  imageUrl       String?
+  imageAnalysis  String?  @db.Text
+  extractedText  String?  @db.Text
+  colors         String[] // Array of color names
+  visualType     String?  // screenshot, diagram, photo, design, chart, meme, other
+
+  // Voice-specific fields (JSON)
+  voice Json? // Contains: audioUrl, transcript, tone, sentiment, summary, mainTopics, actionItems, entities, contentType
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indexes for performance
+  @@index([type])
+  @@index([createdAt(sort: Desc)])
+  @@index([keywords])
+  @@index([tags])
+}
