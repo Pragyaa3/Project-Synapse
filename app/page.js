@@ -5,8 +5,10 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, Brain, Mic, Loader2, Sparkles, Upload, Image as ImageIcon } from 'lucide-react';
 import { storage } from '@/lib/storage';
 import ContentCard from '@/components/ContentCard';
+import LandingPage from '@/components/LandingPage';
 
 export default function Home() {
+  const [showLanding, setShowLanding] = useState(true);
   const [items, setItems] = useState([]);
   const [filteredItems, setFilteredItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -248,6 +250,11 @@ export default function Home() {
 
   const stats = storage.getStats();
 
+  // Show landing page first
+  if (showLanding) {
+    return <LandingPage onEnter={() => setShowLanding(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
       {/* Header */}
@@ -267,6 +274,12 @@ export default function Home() {
               <div className="text-sm text-gray-600">
                 <span className="font-semibold text-purple-600">{stats.total}</span> items
               </div>
+              <button
+                onClick={() => setShowLanding(true)}
+                className="px-3 py-2 text-gray-600 hover:text-purple-600 transition-colors text-sm"
+              >
+                Home
+              </button>
               <button
                 onClick={() => setIsCapturing(!isCapturing)}
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-md hover:shadow-lg"
