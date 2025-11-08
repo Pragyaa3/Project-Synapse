@@ -309,7 +309,9 @@ async function sendToSynapse(data, tabId) {
     console.log('API response status:', response.status);
 
     if (!response.ok) {
-      throw new Error('Failed to save to Synapse');
+      const errorData = await response.json().catch(() => ({}));
+      console.error('API error response:', errorData);
+      throw new Error(errorData.details || errorData.error || 'Failed to save to Synapse');
     }
 
     const result = await response.json();
@@ -322,7 +324,10 @@ async function sendToSynapse(data, tabId) {
     console.log('Saved to Synapse:', result);
   } catch (error) {
     console.error('Error saving to Synapse:', error);
-    await showNotification(tabId, 'error', '❌ Failed to save. Check console.');
+    const errorMessage = error.message.includes('Failed to fetch')
+      ? '❌ Cannot connect to Synapse. Is it running?'
+      : `❌ Error: ${error.message}`;
+    await showNotification(tabId, 'error', errorMessage);
   }
 }
 

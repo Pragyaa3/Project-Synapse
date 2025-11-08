@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "mcp": "node mcp/server.js",
+    "dev:all": "concurrently \"npm run dev\" \"npm run mcp\""
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
@@ -19,6 +21,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
     "prisma": "^6.19.0",
